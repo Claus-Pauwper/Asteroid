@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asteroid Dodger</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 100vh;
+    font-family: monospace;
+  }
+  canvas {
+    background: #000;
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #333;
+  }
+</style>
+</head>
+<body>
+<canvas id="game" width="800" height="600"></canvas>
+
+<script>
+(function () {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const WIDTH = 800;
+  const HEIGHT = 600;
+
+  const BLACK = '#000000';
+  const WHITE = '#ffffff';
+  const RED = '#ff0000';
+  const GRAY = '#808080';
+
+  const FPS = 60;
+  const ROCKET_SPEED = 5;
+  const ASTEROID_SPEED_MIN = 2;
+  const ASTEROID_SPEED_MAX = 5;
+  const BULLET_SPEED = 10;
+  const SPEED_INCREASE_INTERVAL = 20;
+  const SPEED_MULTIPLIER = 1.2;
+  const SPAWN_DELAY = 60;
+
+  const ASTEROID_SIZES = { small: 20, medium: 40, large: 60 };
+  const ASTEROID_HEALTH = { small: 1, medium: 2, large: 3 };
+  const SIZE_TYPES = ['small', 'medium', 'large'];
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+  function randUniform(min, max) {
+    return Math.random() * (max - min) + min;
+  }
+  function choice(arr) {
+    return arr[randInt(0, arr.length - 1)];
+  }
+
+  class Rocket {
+    constructor() {
+      this.width = 40;
+      this.height = 50;
+      this.x = WIDTH / 2 - this.width / 2;
+      this.y = HEIGHT - this.height - 20;
+      this.speed = ROCKET_SPEED;
+      this.shootCooldown = 0;
+    }
+    move(direction) {
+      if (direction === 'left') this.x -= this.speed;
+      else if (direction === 'right') this.x += this.speed;
+      if (this.x < 0) this.x = 0;
+      else if (this.x > WIDTH - this.width) this.x = WIDTH - this.width;
+    }
+    update() {
+      if (this.shootCooldown > 0) this.shootCooldown -= 1;
+    }
+    canShoot() {
+      return this.shootCooldown === 0;
+    }
+    shoot() {
+      if (this.canShoot()) {
+        this.shootCooldown = 10;
+        return new Bullet(this.x + this.width / 2, this.y);
+      }
+      return null;
+    }
+    draw(c) {
+      c.fillStyle = WHITE;
+      c.fillRect(this.x + 10, this.y + 15, 20, 35);
+
+      c.fillStyle = RED;
+      c.beginPath();
+      c.moveTo(this.x + 20, this.y);
+      c.lineTo(this.x + 10, this.y + 15);
+      c.lineTo(this.x + 30, this.y + 15);
+      c.closePath();
+      c.fill();
+
+      c.fillStyle = WHITE;
+      c.beginPath();
+      c.moveTo(this.x, this.y + 40);
+      c.lineTo(this.x + 10, this.y + 30);
+      c.lineTo(this.x + 10, this.y + 50);
+      c.closePath();
+      c.fill();
+
+      c.beginPath();
+      c.moveTo(this.x + 40, this.y + 40);
+      c.lineTo(this.x + 30, this.y + 30);
+      c.lineTo(this.x + 30, this.y + 50);
+      c.closePath();
+      c.fill();
+    }
+    getRect() {
+      return { x: this.x, y: this.y, w: this.width, h: this.height };
+    }
+  }
+
+  class Bullet {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.width = 4;
+      this.height = 15;
+      this.speed = BULLET_SPEED;
+    }
+    update() {
+      this.y -= this.speed;
+    }
+    draw(c) {
+      c.fillStyle = RED;
+      c.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+    }
+    isOffScreen() {
+      return this.y < 0;
+    }
+    getRect() {
+      return { x: this.x - this.width / 2, y: this.y, w: this.width, h: this.height };
+    }
+  }
+
+  class Asteroid {
+    constructor(speedMultiplier = 1.0) {
+      this.sizeType = choice(SIZE_TYPES);
+      this.radius = ASTEROID_SIZES[this.sizeType];
+      this.x = randInt(this.radius, WIDTH - this.radius);
+      this.y = -this.radius;
+      this.speed = randUniform(ASTEROID_SPEED_MIN, ASTEROID_SPEED_MAX) * speedMultiplier;
+      this.health = ASTEROID_HEALTH[this.sizeType];
+      this.maxHealth = this.health;
+      this.points = this.generateShape();
+    }
+    generateShape() {
+      const points = [];
+      const numPoints = randInt(8, 12);
+      for (let i = 0; i < numPoints; i++) {
+        const angle = (i / numPoints) * 2 * Math.PI;
+        const variation = randUniform(0.7, 1.0);
+        const radius = this.radius * variation;
+        const x = this.x + radius * Math.cos(angle);
+        const y = this.y + radius * Math.sin(angle);
+        points.push([x, y]);
+      }
+      return points;
+    }
+    update() {
+      this.y += this.speed;
+      for (let i = 0; i < this.points.length; i++) {
+        this.points[i] = [this.points[i][0], this.points[i][1] + this.speed];
+      }
+    }
+    draw(c) {
+      if (this.points.length > 2) {
+        c.beginPath();
+        c.moveTo(this.points[0][0], this.points[0][1]);
+        for (let i = 1; i < this.points.length; i++) {
+          c.lineTo(this.points[i][0], this.points[i][1]);
+        }
+        c.closePath();
+        c.fillStyle = GRAY;
+        c.fill();
+        c.strokeStyle = WHITE;
+        c.lineWidth = 2;
+        c.stroke();
+
+        if (this.health < this.maxHealth) {
+          const barWidth = this.radius * 2;
+          const barHeight = 5;
+          const hx = this.x - this.radius;
+          const hy = this.y - this.radius - 10;
+
+          c.fillStyle = RED;
+          c.fillRect(hx, hy, barWidth, barHeight);
+          c.fillStyle = WHITE;
+          c.fillRect(hx, hy, (this.health / this.maxHealth) * barWidth, barHeight);
+        }
+      }
+    }
+    takeDamage() {
+      this.health -= 1;
+      return this.health <= 0;
+    }
+    isOffScreen() {
+      return this.y - this.radius > HEIGHT;
+    }
+    getRect() {
+      return {
+        x: this.x - this.radius,
+        y: this.y - this.radius,
+        w: this.radius * 2,
+        h: this.radius * 2,
+      };
+    }
+  }
+
+  function rectsCollide(a, b) {
+    return (
+      a.x < b.x + b.w &&
+      a.x + a.w > b.x &&
+      a.y < b.y + b.h &&
+      a.y + a.h > b.y
+    );
+  }
+
+  let rocket, asteroids, bullets, score, gameOver, spawnTimer, speedMultiplier;
+
+  function resetGame() {
+    rocket = new Rocket();
+    asteroids = [];
+    bullets = [];
+    score = 0;
+    gameOver = false;
+    spawnTimer = 0;
+    speedMultiplier = 1.0;
+  }
+
+  const keys = { left: false, right: false };
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft') keys.left = true;
+    if (e.code === 'ArrowRight') keys.right = true;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (gameOver) {
+        resetGame();
+      } else {
+        const b = rocket.shoot();
+        if (b) bullets.push(b);
+      }
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft') keys.left = false;
+    if (e.code === 'ArrowRight') keys.right = false;
+  });
+
+  function update() {
+    if (gameOver) return;
+
+    if (keys.left) rocket.move('left');
+    if (keys.right) rocket.move('right');
+    rocket.update();
+
+    const currentLevel = Math.floor(score / SPEED_INCREASE_INTERVAL);
+    speedMultiplier = 1.0 + currentLevel * (SPEED_MULTIPLIER - 1.0);
+
+    spawnTimer += 1;
+    if (spawnTimer >= SPAWN_DELAY) {
+      asteroids.push(new Asteroid(speedMultiplier));
+      spawnTimer = 0;
+    }
+
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      bullets[i].update();
+      if (bullets[i].isOffScreen()) bullets.splice(i, 1);
+    }
+
+    for (let i = asteroids.length - 1; i >= 0; i--) {
+      const asteroid = asteroids[i];
+      asteroid.update();
+
+      let hit = false;
+      for (let j = bullets.length - 1; j >= 0; j--) {
+        if (rectsCollide(bullets[j].getRect(), asteroid.getRect())) {
+          bullets.splice(j, 1);
+          if (asteroid.takeDamage()) {
+            asteroids.splice(i, 1);
+            score += 1;
+            hit = true;
+          }
+          break;
+        }
+      }
+      if (hit) continue;
+
+      if (asteroids.includes(asteroid) && rectsCollide(rocket.getRect(), asteroid.getRect())) {
+        gameOver = true;
+      }
+      if (asteroids.includes(asteroid) && asteroid.isOffScreen()) {
+        const idx = asteroids.indexOf(asteroid);
+        if (idx !== -1) asteroids.splice(idx, 1);
+        score += 1;
+      }
+    }
+  }
+
+  function draw() {
+    ctx.fillStyle = BLACK;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    if (!gameOver) {
+      rocket.draw(ctx);
+      bullets.forEach((b) => b.draw(ctx));
+      asteroids.forEach((a) => a.draw(ctx));
+
+      ctx.fillStyle = WHITE;
+      ctx.font = '28px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Score: ${score}`, 10, 32);
+      const level = Math.floor(score / SPEED_INCREASE_INTERVAL) + 1;
+      ctx.fillText(`Level: ${level}`, 10, 66);
+    } else {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = RED;
+      ctx.font = '36px monospace';
+      ctx.fillText('GAME OVER!', WIDTH / 2, HEIGHT / 2 - 40);
+
+      ctx.fillStyle = WHITE;
+      ctx.font = '28px monospace';
+      ctx.fillText(`Final Score: ${score}`, WIDTH / 2, HEIGHT / 2 + 5);
+      ctx.fillText('Press SPACE to restart', WIDTH / 2, HEIGHT / 2 + 45);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  resetGame();
+  loop();
+})();
+</script>
+</body>
+</html>
