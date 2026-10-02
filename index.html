@@ -19,6 +19,7 @@
     touch-action: none;
   }
   #wrap {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -31,6 +32,66 @@
     height: auto;
     border: 1px solid #333;
   }
+  
+  /* Overlays for Start and Game Over Screens */
+  .overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 600px;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    text-align: center;
+    box-sizing: border-box;
+    padding: 20px;
+    z-index: 10;
+  }
+  
+  .preview-image {
+    width: 300px;
+    height: auto;
+    max-height: 200px;
+    object-fit: cover;
+    border: 2px solid #555;
+    border-radius: 8px;
+    margin: 15px 0;
+  }
+
+  .overlay h1 {
+    font-size: 36px;
+    margin: 0 0 10px 0;
+    color: #ff0000;
+  }
+
+  .overlay p {
+    font-size: 18px;
+    margin: 5px 0;
+  }
+
+  .start-btn {
+    margin-top: 15px;
+    padding: 10px 20px;
+    font-family: monospace;
+    font-size: 18px;
+    color: #fff;
+    background-color: #300;
+    border: 2px solid #700;
+    cursor: pointer;
+  }
+
+  .start-btn:hover {
+    background-color: #500;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
   #touch-controls {
     display: flex;
     justify-content: space-between;
@@ -78,20 +139,43 @@
 </head>
 <body>
 <div id="wrap">
-<canvas id="game" width="800" height="600"></canvas>
-<div id="touch-controls">
-  <div class="side">
-    <div class="btn" id="left-btn">&#9664;</div>
-    <div class="btn" id="right-btn">&#9654;</div>
+  <canvas id="game" width="800" height="600"></canvas>
+  
+  <!-- Start Screen Overlay -->
+  <div id="start-screen" class="overlay">
+    <h1>ASTEROID DODGER</h1>
+    <img src="asteroid-dodger.jpeg" alt="Asteroid Dodger Preview" class="preview-image">
+    <p>Use LEFT/RIGHT arrows to move, SPACE to shoot</p>
+    <button class="start-btn" id="start-game-btn">START GAME</button>
   </div>
-  <div class="btn" id="fire-btn">FIRE</div>
-</div>
+
+  <!-- Game Over Screen Overlay -->
+  <div id="gameover-screen" class="overlay hidden">
+    <h1>GAME OVER</h1>
+    <img src="asteroid-dodger.jpeg" alt="Asteroid Dodger Preview" class="preview-image">
+    <p>Final Score: <span id="final-score">0</span></p>
+    <button class="start-btn" id="restart-game-btn">PLAY AGAIN</button>
+  </div>
+
+  <div id="touch-controls">
+    <div class="side">
+      <div class="btn" id="left-btn">&#9664;</div>
+      <div class="btn" id="right-btn">&#9654;</div>
+    </div>
+    <div class="btn" id="fire-btn">FIRE</div>
+  </div>
 </div>
 
 <script>
 (function () {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+
+  const startScreen = document.getElementById('start-screen');
+  const gameoverScreen = document.getElementById('gameover-screen');
+  const startGameBtn = document.getElementById('start-game-btn');
+  const restartGameBtn = document.getElementById('restart-game-btn');
+  const finalScoreEl = document.getElementById('final-score');
 
   const WIDTH = 800;
   const HEIGHT = 600;
@@ -101,7 +185,6 @@
   const RED = '#ff0000';
   const GRAY = '#808080';
 
-  const FPS = 60;
   const ROCKET_SPEED = 5;
   const ASTEROID_SPEED_MIN = 2;
   const ASTEROID_SPEED_MAX = 5;
@@ -112,6 +195,8 @@
 
   const ASTEROID_SIZES = { small: 20, medium: 40, large: 60 };
   const ASTEROID_HEALTH = { small: 1, medium: 2, large: 3 };
+  // Points assigned per destroyed asteroid size
+  const ASTEROID_POINTS = { small: 1, medium: 2, large: 3 };
   const SIZE_TYPES = ['small', 'medium', 'large'];
 
   function randInt(min, max) {
@@ -216,6 +301,7 @@
       this.speed = randUniform(ASTEROID_SPEED_MIN, ASTEROID_SPEED_MAX) * speedMultiplier;
       this.health = ASTEROID_HEALTH[this.sizeType];
       this.maxHealth = this.health;
+      this.pointsValue = ASTEROID_POINTS[this.sizeType];
       this.points = this.generateShape();
     }
     generateShape() {
@@ -290,7 +376,7 @@
     );
   }
 
-  let rocket, asteroids, bullets, score, gameOver, spawnTimer, speedMultiplier;
+  let rocket, asteroids, bullets, score, gameOver, gameStarted, spawnTimer, speedMultiplier;
 
   function resetGame() {
     rocket = new Rocket();
@@ -298,8 +384,17 @@
     bullets = [];
     score = 0;
     gameOver = false;
+    gameStarted = true;
     spawnTimer = 0;
     speedMultiplier = 1.0;
+    startScreen.classList.add('hidden');
+    gameoverScreen.classList.add('hidden');
+  }
+
+  function endGame() {
+    gameOver = true;
+    finalScoreEl.textContent = score;
+    gameoverScreen.classList.remove('hidden');
   }
 
   const keys = { left: false, right: false, fire: false };
@@ -309,7 +404,7 @@
     if (e.code === 'ArrowRight') keys.right = true;
     if (e.code === 'Space') {
       e.preventDefault();
-      if (gameOver) {
+      if (!gameStarted || gameOver) {
         resetGame();
       } else {
         const b = rocket.shoot();
@@ -350,19 +445,11 @@
   bindHold(rightBtn, () => (keys.right = true), () => (keys.right = false));
   bindHold(fireBtn, () => (keys.fire = true), () => (keys.fire = false));
 
-  fireBtn.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    if (gameOver) resetGame();
-  }, { passive: false });
-  fireBtn.addEventListener('mousedown', () => {
-    if (gameOver) resetGame();
-  });
-  canvas.addEventListener('touchstart', () => {
-    if (gameOver) resetGame();
-  }, { passive: true });
+  startGameBtn.addEventListener('click', resetGame);
+  restartGameBtn.addEventListener('click', resetGame);
 
   function update() {
-    if (gameOver) return;
+    if (!gameStarted || gameOver) return;
 
     if (keys.left) rocket.move('left');
     if (keys.right) rocket.move('right');
@@ -396,8 +483,9 @@
         if (rectsCollide(bullets[j].getRect(), asteroid.getRect())) {
           bullets.splice(j, 1);
           if (asteroid.takeDamage()) {
+            // Add points based on asteroid size when destroyed
+            score += asteroid.pointsValue;
             asteroids.splice(i, 1);
-            score += 1;
             hit = true;
           }
           break;
@@ -406,12 +494,13 @@
       if (hit) continue;
 
       if (asteroids.includes(asteroid) && rectsCollide(rocket.getRect(), asteroid.getRect())) {
-        gameOver = true;
+        endGame();
       }
+      
+      // Remove off-screen asteroids WITHOUT increasing score
       if (asteroids.includes(asteroid) && asteroid.isOffScreen()) {
         const idx = asteroids.indexOf(asteroid);
         if (idx !== -1) asteroids.splice(idx, 1);
-        score += 1;
       }
     }
   }
@@ -420,7 +509,7 @@
     ctx.fillStyle = BLACK;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    if (!gameOver) {
+    if (gameStarted && !gameOver) {
       rocket.draw(ctx);
       bullets.forEach((b) => b.draw(ctx));
       asteroids.forEach((a) => a.draw(ctx));
@@ -431,17 +520,6 @@
       ctx.fillText(`Score: ${score}`, 10, 32);
       const level = Math.floor(score / SPEED_INCREASE_INTERVAL) + 1;
       ctx.fillText(`Level: ${level}`, 10, 66);
-    } else {
-      ctx.textAlign = 'center';
-      ctx.fillStyle = RED;
-      ctx.font = '36px monospace';
-      ctx.fillText('GAME OVER!', WIDTH / 2, HEIGHT / 2 - 40);
-
-      ctx.fillStyle = WHITE;
-      ctx.font = '28px monospace';
-      ctx.fillText(`Final Score: ${score}`, WIDTH / 2, HEIGHT / 2 + 5);
-      ctx.fillText('Press SPACE to restart', WIDTH / 2, HEIGHT / 2 + 45);
-      ctx.textAlign = 'left';
     }
   }
 
@@ -451,7 +529,6 @@
     requestAnimationFrame(loop);
   }
 
-  resetGame();
   loop();
 })();
 </script>
