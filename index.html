@@ -2,535 +2,349 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Asteroid Dodger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NL Pig Kill Tracker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%B7%3C/text%3E%3C/svg%3E">
 <style>
+  :root {
+    --bg-blue: #1a3c6e;
+    --star-yellow: #ffdd55;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Custom visible scrollbar for Firefox */
+  html {
+    scrollbar-width: auto;
+    scrollbar-color: var(--star-yellow) rgba(0, 0, 0, 0.3);
+  }
+
+  /* Custom visible scrollbar for Chrome, Safari, Edge */
+  ::-webkit-scrollbar {
+    width: 14px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--star-yellow);
+    border-radius: 7px;
+    border: 3px solid var(--bg-blue);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #ffffff;
+  }
+
   html, body {
     margin: 0;
     padding: 0;
-    background: #000;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    min-height: 100vh;
-    font-family: monospace;
-    touch-action: none;
+    background-color: var(--bg-blue);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   }
-  #wrap {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
+
+  body {
+    padding-top: 70px; /* leaves room for the fixed info window */
+    padding-bottom: 30px; /* leaves room for the visit counter */
+    overflow-x: hidden;
   }
-  canvas {
-    background: #000;
-    display: block;
-    max-width: 96vw;
-    height: auto;
-    border: 1px solid #333;
-  }
-  
-  /* Overlays for Start and Game Over Screens */
-  .overlay {
-    position: absolute;
+
+  /* Background starry sky canvas */
+  #star-bg {
+    position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 600px;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: #fff;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  #info-window {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.92);
+    color: #1a3c6e;
+    padding: 10px 22px;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-family: "Courier New", Courier, monospace;
+    font-size: 15px;
+    font-weight: bold;
     text-align: center;
-    box-sizing: border-box;
-    padding: 20px;
     z-index: 10;
-  }
-  
-  .preview-image {
-    width: 600px;
-    height: auto;
-    max-height: 500px;
-    object-fit: cover;
-    border: 2px solid #555;
-    border-radius: 8px;
-    margin: 15px 0;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
   }
 
-  .overlay h1 {
-    font-size: 36px;
-    margin: 0 0 10px 0;
-    color: #ff0000;
-  }
-
-  .overlay p {
-    font-size: 18px;
-    margin: 5px 0;
-  }
-
-  .start-btn {
-    margin-top: 15px;
-    padding: 10px 20px;
-    font-family: monospace;
-    font-size: 18px;
-    color: #fff;
-    background-color: #300;
-    border: 2px solid #700;
+  #dot-canvas {
+    display: block;
+    margin: 0 auto;
     cursor: pointer;
-  }
-
-  .start-btn:hover {
-    background-color: #500;
-  }
-
-  .hidden {
-    display: none !important;
-  }
-
-  #touch-controls {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    max-width: 800px;
-    padding: 0 10px;
-    box-sizing: border-box;
-    user-select: none;
-  }
-  #touch-controls .side {
-    display: flex;
-    gap: 10px;
-  }
-  .btn {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: #222;
-    border: 2px solid #555;
-    color: #fff;
-    font-size: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    /* Prevents touch dragging from causing page scroll over canvas */
     touch-action: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
   }
-  .btn:active, .btn.active {
-    background: #444;
-    border-color: #888;
-  }
-  #fire-btn {
-    width: 80px;
-    background: #300;
-    border-color: #700;
-  }
-  #fire-btn:active, #fire-btn.active {
-    background: #500;
-  }
-  @media (min-width: 900px) and (pointer: fine) {
-    #touch-controls { display: none; }
+
+  #visit-counter {
+    position: fixed;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: "Courier New", Courier, monospace;
+    font-size: 12px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.85);
+    z-index: 10;
+    letter-spacing: 0.2px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 10px;
+    border-radius: 12px;
   }
 </style>
 </head>
 <body>
-<div id="wrap">
-  <canvas id="game" width="800" height="600"></canvas>
-  
-  <!-- Start Screen Overlay -->
-  <div id="start-screen" class="overlay">
-    <h1>ASTEROID DODGER</h1>
-    <img src="asteroid-dodger.jpeg" alt="Asteroid Dodger Preview" class="preview-image">
-    <p>Use LEFT/RIGHT arrows to move, SPACE to shoot</p>
-    <button class="start-btn" id="start-game-btn">START GAME</button>
-  </div>
 
-  <!-- Game Over Screen Overlay -->
-  <div id="gameover-screen" class="overlay hidden">
-    <h1>GAME OVER</h1>
-    <img src="asteroid-dodger.jpeg" alt="Asteroid Dodger Preview" class="preview-image">
-    <p>Final Score: <span id="final-score">0</span></p>
-    <button class="start-btn" id="restart-game-btn">PLAY AGAIN</button>
-  </div>
+<canvas id="star-bg"></canvas>
 
-  <div id="touch-controls">
-    <div class="side">
-      <div class="btn" id="left-btn">&#9664;</div>
-      <div class="btn" id="right-btn">&#9654;</div>
-    </div>
-    <div class="btn" id="fire-btn">FIRE</div>
-  </div>
-</div>
+<div id="info-window">NL pig kill 2025 daily average: 38483</div>
+
+<canvas id="dot-canvas"></canvas>
+
+<div id="visit-counter">visits: <span id="visit-count">--</span></div>
 
 <script>
-(function () {
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  /* =========================================================
+     ANIMATED BACKGROUND STARS
+     ========================================================= */
+  const starBgCanvas = document.getElementById("star-bg");
+  const starCtx = starBgCanvas.getContext("2d");
 
-  const startScreen = document.getElementById('start-screen');
-  const gameoverScreen = document.getElementById('gameover-screen');
-  const startGameBtn = document.getElementById('start-game-btn');
-  const restartGameBtn = document.getElementById('restart-game-btn');
-  const finalScoreEl = document.getElementById('final-score');
+  let bgWidth = 0;
+  let bgHeight = 0;
+  const STAR_COUNT = 80;
+  const stars = [];
 
-  const WIDTH = 800;
-  const HEIGHT = 600;
-
-  const BLACK = '#000000';
-  const WHITE = '#ffffff';
-  const RED = '#ff0000';
-  const GRAY = '#808080';
-
-  const ROCKET_SPEED = 5;
-  const ASTEROID_SPEED_MIN = 2;
-  const ASTEROID_SPEED_MAX = 5;
-  const BULLET_SPEED = 10;
-  const SPEED_INCREASE_INTERVAL = 20;
-  const SPEED_MULTIPLIER = 1.2;
-  const SPAWN_DELAY = 60;
-
-  const ASTEROID_SIZES = { small: 20, medium: 40, large: 60 };
-  const ASTEROID_HEALTH = { small: 1, medium: 2, large: 3 };
-  // Points assigned per destroyed asteroid size
-  const ASTEROID_POINTS = { small: 1, medium: 2, large: 3 };
-  const SIZE_TYPES = ['small', 'medium', 'large'];
-
-  function randInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-  function randUniform(min, max) {
-    return Math.random() * (max - min) + min;
-  }
-  function choice(arr) {
-    return arr[randInt(0, arr.length - 1)];
+  function resizeStarBg() {
+    bgWidth = window.innerWidth;
+    bgHeight = window.innerHeight;
+    starBgCanvas.width = bgWidth;
+    starBgCanvas.height = bgHeight;
   }
 
-  class Rocket {
-    constructor() {
-      this.width = 40;
-      this.height = 50;
-      this.x = WIDTH / 2 - this.width / 2;
-      this.y = HEIGHT - this.height - 20;
-      this.speed = ROCKET_SPEED;
-      this.shootCooldown = 0;
+  function initStars() {
+    stars.length = 0;
+    for (let i = 0; i < STAR_COUNT; i++) {
+      stars.push({
+        x: Math.random() * bgWidth,
+        y: Math.random() * bgHeight,
+        radius: Math.random() * 1.5 + 0.5,
+        speed: Math.random() * 0.4 + 0.1,
+        alpha: Math.random() * 0.7 + 0.3
+      });
     }
-    move(direction) {
-      if (direction === 'left') this.x -= this.speed;
-      else if (direction === 'right') this.x += this.speed;
-      if (this.x < 0) this.x = 0;
-      else if (this.x > WIDTH - this.width) this.x = WIDTH - this.width;
-    }
-    update() {
-      if (this.shootCooldown > 0) this.shootCooldown -= 1;
-    }
-    canShoot() {
-      return this.shootCooldown === 0;
-    }
-    shoot() {
-      if (this.canShoot()) {
-        this.shootCooldown = 10;
-        return new Bullet(this.x + this.width / 2, this.y);
+  }
+
+  function animateStars() {
+    starCtx.clearRect(0, 0, bgWidth, bgHeight);
+
+    for (let i = 0; i < stars.length; i++) {
+      const star = stars[i];
+      star.y += star.speed;
+
+      // Wrap around when reaching the bottom
+      if (star.y > bgHeight) {
+        star.y = 0;
+        star.x = Math.random() * bgWidth;
       }
-      return null;
+
+      starCtx.beginPath();
+      starCtx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+      starCtx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+      starCtx.fill();
     }
-    draw(c) {
-      c.fillStyle = WHITE;
-      c.fillRect(this.x + 10, this.y + 15, 20, 35);
 
-      c.fillStyle = RED;
-      c.beginPath();
-      c.moveTo(this.x + 20, this.y);
-      c.lineTo(this.x + 10, this.y + 15);
-      c.lineTo(this.x + 30, this.y + 15);
-      c.closePath();
-      c.fill();
+    requestAnimationFrame(animateStars);
+  }
 
-      c.fillStyle = WHITE;
-      c.beginPath();
-      c.moveTo(this.x, this.y + 40);
-      c.lineTo(this.x + 10, this.y + 30);
-      c.lineTo(this.x + 10, this.y + 50);
-      c.closePath();
-      c.fill();
+  resizeStarBg();
+  initStars();
+  animateStars();
 
-      c.beginPath();
-      c.moveTo(this.x + 40, this.y + 40);
-      c.lineTo(this.x + 30, this.y + 30);
-      c.lineTo(this.x + 30, this.y + 50);
-      c.closePath();
-      c.fill();
+  /* =========================================================
+     The daily average number below also controls how many
+     dots are drawn in the grid.
+     ========================================================= */
+  const DAILY_NUMBER = 38483;
+
+  /* =========================================================
+     DOT GRID (RASTER)
+     ========================================================= */
+  const CELL_SIZE = 16; // size of each grid cell in px
+
+  const canvas = document.getElementById("dot-canvas");
+  const ctx = canvas.getContext("2d");
+
+  let COLS = 1;
+  let ROWS = 1;
+  const starred = new Set();
+
+  const PIG_FONT = `${Math.round(CELL_SIZE * 0.95)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+
+  function drawDot(x, y) {
+    const cx = x + CELL_SIZE / 2;
+    const cy = y + CELL_SIZE / 2;
+    ctx.font = PIG_FONT;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("🐷", cx, cy);
+  }
+
+  function drawStar(x, y) {
+    const cx = x + CELL_SIZE / 2;
+    const cy = y + CELL_SIZE / 2;
+    const outerR = CELL_SIZE * 0.5;
+    const innerR = CELL_SIZE * 0.2;
+    const spikes = 5;
+    let rot = (Math.PI / 2) * 3;
+    const step = Math.PI / spikes;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - outerR);
+    for (let i = 0; i < spikes; i++) {
+      let sx = cx + Math.cos(rot) * outerR;
+      let sy = cy + Math.sin(rot) * outerR;
+      ctx.lineTo(sx, sy);
+      rot += step;
+
+      sx = cx + Math.cos(rot) * innerR;
+      sy = cy + Math.sin(rot) * innerR;
+      ctx.lineTo(sx, sy);
+      rot += step;
     }
-    getRect() {
-      return { x: this.x, y: this.y, w: this.width, h: this.height };
+    ctx.lineTo(cx, cy - outerR);
+    ctx.closePath();
+    ctx.fillStyle = "#ffdd55";
+    ctx.fill();
+  }
+
+  function cellCoords(index) {
+    const col = index % COLS;
+    const row = Math.floor(index / COLS);
+    return { x: col * CELL_SIZE, y: row * CELL_SIZE };
+  }
+
+  function drawCell(index) {
+    const { x, y } = cellCoords(index);
+    ctx.clearRect(x, y, CELL_SIZE, CELL_SIZE);
+    if (starred.has(index)) {
+      drawStar(x, y);
+    } else {
+      drawDot(x, y);
     }
   }
 
-  class Bullet {
-    constructor(x, y) {
-      this.x = x;
-      this.y = y;
-      this.width = 4;
-      this.height = 15;
-      this.speed = BULLET_SPEED;
-    }
-    update() {
-      this.y -= this.speed;
-    }
-    draw(c) {
-      c.fillStyle = RED;
-      c.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
-    }
-    isOffScreen() {
-      return this.y < 0;
-    }
-    getRect() {
-      return { x: this.x - this.width / 2, y: this.y, w: this.width, h: this.height };
-    }
-  }
-
-  class Asteroid {
-    constructor(speedMultiplier = 1.0) {
-      this.sizeType = choice(SIZE_TYPES);
-      this.radius = ASTEROID_SIZES[this.sizeType];
-      this.x = randInt(this.radius, WIDTH - this.radius);
-      this.y = -this.radius;
-      this.speed = randUniform(ASTEROID_SPEED_MIN, ASTEROID_SPEED_MAX) * speedMultiplier;
-      this.health = ASTEROID_HEALTH[this.sizeType];
-      this.maxHealth = this.health;
-      this.pointsValue = ASTEROID_POINTS[this.sizeType];
-      this.points = this.generateShape();
-    }
-    generateShape() {
-      const points = [];
-      const numPoints = randInt(8, 12);
-      for (let i = 0; i < numPoints; i++) {
-        const angle = (i / numPoints) * 2 * Math.PI;
-        const variation = randUniform(0.7, 1.0);
-        const radius = this.radius * variation;
-        const x = this.x + radius * Math.cos(angle);
-        const y = this.y + radius * Math.sin(angle);
-        points.push([x, y]);
-      }
-      return points;
-    }
-    update() {
-      this.y += this.speed;
-      for (let i = 0; i < this.points.length; i++) {
-        this.points[i] = [this.points[i][0], this.points[i][1] + this.speed];
-      }
-    }
-    draw(c) {
-      if (this.points.length > 2) {
-        c.beginPath();
-        c.moveTo(this.points[0][0], this.points[0][1]);
-        for (let i = 1; i < this.points.length; i++) {
-          c.lineTo(this.points[i][0], this.points[i][1]);
-        }
-        c.closePath();
-        c.fillStyle = GRAY;
-        c.fill();
-        c.strokeStyle = WHITE;
-        c.lineWidth = 2;
-        c.stroke();
-
-        if (this.health < this.maxHealth) {
-          const barWidth = this.radius * 2;
-          const barHeight = 5;
-          const hx = this.x - this.radius;
-          const hy = this.y - this.radius - 10;
-
-          c.fillStyle = RED;
-          c.fillRect(hx, hy, barWidth, barHeight);
-          c.fillStyle = WHITE;
-          c.fillRect(hx, hy, (this.health / this.maxHealth) * barWidth, barHeight);
-        }
-      }
-    }
-    takeDamage() {
-      this.health -= 1;
-      return this.health <= 0;
-    }
-    isOffScreen() {
-      return this.y - this.radius > HEIGHT;
-    }
-    getRect() {
-      return {
-        x: this.x - this.radius,
-        y: this.y - this.radius,
-        w: this.radius * 2,
-        h: this.radius * 2,
-      };
-    }
-  }
-
-  function rectsCollide(a, b) {
-    return (
-      a.x < b.x + b.w &&
-      a.x + a.w > b.x &&
-      a.y < b.y + b.h &&
-      a.y + a.h > b.y
-    );
-  }
-
-  let rocket, asteroids, bullets, score, gameOver, gameStarted, spawnTimer, speedMultiplier;
-
-  function resetGame() {
-    rocket = new Rocket();
-    asteroids = [];
-    bullets = [];
-    score = 0;
-    gameOver = false;
-    gameStarted = true;
-    spawnTimer = 0;
-    speedMultiplier = 1.0;
-    startScreen.classList.add('hidden');
-    gameoverScreen.classList.add('hidden');
-  }
-
-  function endGame() {
-    gameOver = true;
-    finalScoreEl.textContent = score;
-    gameoverScreen.classList.remove('hidden');
-  }
-
-  const keys = { left: false, right: false, fire: false };
-
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'ArrowLeft') keys.left = true;
-    if (e.code === 'ArrowRight') keys.right = true;
-    if (e.code === 'Space') {
-      e.preventDefault();
-      if (!gameStarted || gameOver) {
-        resetGame();
+  function renderAll(count) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < count; i++) {
+      const { x, y } = cellCoords(i);
+      if (starred.has(i)) {
+        drawStar(x, y);
       } else {
-        const b = rocket.shoot();
-        if (b) bullets.push(b);
+        drawDot(x, y);
       }
     }
-  });
-  window.addEventListener('keyup', (e) => {
-    if (e.code === 'ArrowLeft') keys.left = false;
-    if (e.code === 'ArrowRight') keys.right = false;
-  });
-
-  // Touch / on-screen button controls
-  function bindHold(el, onDown, onUp) {
-    const start = (e) => {
-      e.preventDefault();
-      el.classList.add('active');
-      onDown();
-    };
-    const end = (e) => {
-      e.preventDefault();
-      el.classList.remove('active');
-      onUp();
-    };
-    el.addEventListener('touchstart', start, { passive: false });
-    el.addEventListener('touchend', end, { passive: false });
-    el.addEventListener('touchcancel', end, { passive: false });
-    el.addEventListener('mousedown', start);
-    el.addEventListener('mouseup', end);
-    el.addEventListener('mouseleave', end);
   }
 
-  const leftBtn = document.getElementById('left-btn');
-  const rightBtn = document.getElementById('right-btn');
-  const fireBtn = document.getElementById('fire-btn');
+  function buildGrid(count, resetStarred = false) {
+    COLS = Math.max(1, Math.floor(window.innerWidth / CELL_SIZE));
+    ROWS = Math.ceil(count / COLS);
 
-  bindHold(leftBtn, () => (keys.left = true), () => (keys.left = false));
-  bindHold(rightBtn, () => (keys.right = true), () => (keys.right = false));
-  bindHold(fireBtn, () => (keys.fire = true), () => (keys.fire = false));
+    canvas.width = COLS * CELL_SIZE;
+    canvas.height = ROWS * CELL_SIZE;
 
-  startGameBtn.addEventListener('click', resetGame);
-  restartGameBtn.addEventListener('click', resetGame);
-
-  function update() {
-    if (!gameStarted || gameOver) return;
-
-    if (keys.left) rocket.move('left');
-    if (keys.right) rocket.move('right');
-    rocket.update();
-
-    if (keys.fire) {
-      const b = rocket.shoot();
-      if (b) bullets.push(b);
+    if (resetStarred) {
+      starred.clear();
     }
+    renderAll(count);
+  }
 
-    const currentLevel = Math.floor(score / SPEED_INCREASE_INTERVAL);
-    speedMultiplier = 1.0 + currentLevel * (SPEED_MULTIPLIER - 1.0);
+  function handlePointerMove(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * (canvas.width / rect.width);
+    const y = (clientY - rect.top) * (canvas.height / rect.height);
+    const col = Math.floor(x / CELL_SIZE);
+    const row = Math.floor(y / CELL_SIZE);
+    const index = row * COLS + col;
 
-    spawnTimer += 1;
-    if (spawnTimer >= SPAWN_DELAY) {
-      asteroids.push(new Asteroid(speedMultiplier));
-      spawnTimer = 0;
+    if (index >= 0 && index < DAILY_NUMBER && !starred.has(index)) {
+      starred.add(index);
+      drawCell(index);
     }
+  }
 
-    for (let i = bullets.length - 1; i >= 0; i--) {
-      bullets[i].update();
-      if (bullets[i].isOffScreen()) bullets.splice(i, 1);
+  // Mouse Listener
+  canvas.addEventListener("mousemove", (e) => {
+    handlePointerMove(e.clientX, e.clientY);
+  });
+
+  // Touch Listeners for Mobile
+  function handleTouch(e) {
+    if (e.touches && e.touches.length > 0) {
+      const touch = e.touches[0];
+      handlePointerMove(touch.clientX, touch.clientY);
     }
+  }
 
-    for (let i = asteroids.length - 1; i >= 0; i--) {
-      const asteroid = asteroids[i];
-      asteroid.update();
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    handleTouch(e);
+  }, { passive: false });
 
-      let hit = false;
-      for (let j = bullets.length - 1; j >= 0; j--) {
-        if (rectsCollide(bullets[j].getRect(), asteroid.getRect())) {
-          bullets.splice(j, 1);
-          if (asteroid.takeDamage()) {
-            // Add points based on asteroid size when destroyed
-            score += asteroid.pointsValue;
-            asteroids.splice(i, 1);
-            hit = true;
-          }
-          break;
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    handleTouch(e);
+  }, { passive: false });
+
+  buildGrid(DAILY_NUMBER, true);
+
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    resizeStarBg();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => buildGrid(DAILY_NUMBER, false), 200);
+  });
+
+  /* =========================================================
+     VISIT COUNTER
+     ========================================================= */
+  const COUNTER_KEY = "nl_pig_tracker_visits";
+
+  function updateVisitCount() {
+    let localVisits = parseInt(localStorage.getItem(COUNTER_KEY) || "0", 10) + 1;
+    localStorage.setItem(COUNTER_KEY, localVisits);
+
+    fetch("https://api.counterapi.dev/v1/nl-pig-kill-tracker/visits/up")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.count) {
+          document.getElementById("visit-count").textContent = data.count;
+        } else {
+          document.getElementById("visit-count").textContent = localVisits;
         }
-      }
-      if (hit) continue;
-
-      if (asteroids.includes(asteroid) && rectsCollide(rocket.getRect(), asteroid.getRect())) {
-        endGame();
-      }
-      
-      // Remove off-screen asteroids WITHOUT increasing score
-      if (asteroids.includes(asteroid) && asteroid.isOffScreen()) {
-        const idx = asteroids.indexOf(asteroid);
-        if (idx !== -1) asteroids.splice(idx, 1);
-      }
-    }
+      })
+      .catch(() => {
+        document.getElementById("visit-count").textContent = localVisits;
+      });
   }
 
-  function draw() {
-    ctx.fillStyle = BLACK;
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-    if (gameStarted && !gameOver) {
-      rocket.draw(ctx);
-      bullets.forEach((b) => b.draw(ctx));
-      asteroids.forEach((a) => a.draw(ctx));
-
-      ctx.fillStyle = WHITE;
-      ctx.font = '28px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Score: ${score}`, 10, 32);
-      const level = Math.floor(score / SPEED_INCREASE_INTERVAL) + 1;
-      ctx.fillText(`Level: ${level}`, 10, 66);
-    }
-  }
-
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  loop();
-})();
+  updateVisitCount();
 </script>
+
 </body>
 </html>
